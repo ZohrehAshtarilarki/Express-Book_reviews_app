@@ -7,23 +7,84 @@ let users = [];
 
 const isValid = (username)=>{ //returns boolean
 //write code to check is the username is valid
+return users.filter(user => user.username == username).length > 0 ? false : true;
 }
 
 const authenticatedUser = (username,password)=>{ //returns boolean
 //write code to check if username and password match the one we have in records.
+return users.filter(user => user.username == username && user.password == password).length > 0 ? true : false;
 }
 
 //only registered users can login
 regd_users.post("/login", (req,res) => {
   //Write your code here
-  return res.status(300).json({message: "Yet to be implemented"});
+  const { username, password } = req.body;
+
+    if (!username || !password) {
+      res.status(400).json({ errorMessage: "You have to provide username and password" });
+    }
+
+    if (authenticatedUser(username, password)) {
+  
+      let accessToken = jwt.sign({
+        data: password
+      }, 'access', { expiresIn: 60 * 60 });
+
+      req.session.authorization = {
+        accessToken, username
+      }
+      return res.status(200).send("Customer successfully logged in");
+    } else {
+      return res.status(208).json({ errorMessage: "Invalid Login. Check username and password" });
+    }
+
 });
 
 // Add a book review
 regd_users.put("/auth/review/:isbn", (req, res) => {
   //Write your code here
-  return res.status(300).json({message: "Yet to be implemented"});
-});
+  const book = books[req.params.isbn];
+
+    if (!req.query.review) {
+      return res.status(400).json({ errorMessage: "You have to provide ISBN and review" });
+    }
+
+    if (!book) {
+      return res.status(404).json({ errorMessage: "Book not found" });
+    } else {
+      const username = req.session.authorization.username;
+      const userHasReview = Object.keys(book.reviews).includes(username);
+
+      if (userHasReview) {
+        book.reviews[username].review = req.query.review;
+      } else {
+        book.reviews[username] = {
+          review: req.query.review
+        }
+      }
+      return res.send(book);
+    }
+  });
+
+  // Delete a book review
+  regd_users.delete("/auth/review/:isbn", (req, res) => {
+    const book = books[req.params.isbn];
+
+    if (!book) {
+      return res.status(404).json({ errorMessage: "Book not found" });
+    } else {
+      const username = req.session.authorization.username;
+      const userHasReview = book.reviews[username];
+
+      if (userHasReview) {
+        delete book.reviews[username];
+        return res.send(book);
+      } else {
+        return res.status(404).json({ errorMessage: "This book doesn't have a review" });
+      }
+    }
+
+  }); 
 
 module.exports.authenticated = regd_users;
 module.exports.isValid = isValid;
